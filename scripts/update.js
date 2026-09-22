@@ -1,12 +1,13 @@
 #!/usr/bin/env node
-// /bizzfly-rules:update — refresh the BizzFly marketplace and update every
-// installed BizzFly plugin, then show old -> new versions. Uses the `claude` CLI.
+// /bizzfly-rules:update — refresh the BizzFly marketplace and update the
+// bizzfly-rules plugin (and with it rules.md), then show old -> new version.
+// Other BizzFly plugins are left alone. Uses the `claude` CLI.
 //   node scripts/update.js
 'use strict';
 const { spawnSync } = require('child_process');
 
 const REPO = 'vikramsbizzfly/bizzfly-marketplace';
-const LEGACY_REPO = 'vikramsbizzfly/testwright';
+const PLUGIN = 'bizzfly-rules';
 
 function claude(...args) {
   // Windows needs a shell to find claude.cmd/.exe; every argument is a plain
@@ -25,42 +26,36 @@ function json(...args) {
 function fail(msg) { console.error(`bizzfly-rules update: ${msg}`); process.exit(1); }
 
 // Find the marketplace by its repo, not its name, so a renamed local copy still counts.
-const markets = json('plugin', 'marketplace', 'list', '--json');
-const market = markets.find((m) => (m.repo || '').toLowerCase() === REPO);
-const legacy = markets.find((m) => (m.repo || '').toLowerCase() === LEGACY_REPO);
-if (!market) {
-  fail('the BizzFly marketplace is not added. Run:\n' +
-    (legacy ? `  /plugin marketplace remove ${legacy.name}\n` : '') +
-    '  /plugin marketplace add VikramSBizzFly/bizzfly-marketplace');
-}
+const market = json('plugin', 'marketplace', 'list', '--json')
+  .find((m) => (m.repo || '').toLowerCase() === REPO);
+if (!market) fail('the BizzFly marketplace is not added. Run:\n  /plugin marketplace add VikramSBizzFly/bizzfly-marketplace');
+
+const id = `${PLUGIN}@${market.name}`;
+const installed = (list) => list.filter((p) => p.id === id);
+const before = installed(json('plugin', 'list', '--json'));
+if (!before.length) fail(`${id} is not installed.`);
 
 const r = claude('plugin', 'marketplace', 'update', market.name);
 if (!r.ok) fail(`could not refresh the ${market.name} marketplace: ${r.err || r.out}`);
 
-// Exact, case-sensitive: plugins from the old "bizzfly" marketplace must not match "BizzFly".
-const mine = (list) => list.filter((p) => p.id.endsWith(`@${market.name}`));
-const before = mine(json('plugin', 'list', '--json'));
-if (!before.length) fail(`no ${market.name} plugins are installed.`);
-
+// It may be installed in more than one scope (user, project, local); update each.
 const failed = [];
 for (const p of before) {
   const u = claude('plugin', 'update', p.id, '--scope', p.scope);
-  if (!u.ok) failed.push(`${p.id}: ${u.err || u.out}`);
+  if (!u.ok) failed.push(`${p.scope}: ${u.err || u.out}`);
 }
 
-const after = mine(json('plugin', 'list', '--json'));
+const after = installed(json('plugin', 'list', '--json'));
+let changed = false;
 const rows = before.map((p) => {
-  const now = after.find((a) => a.id === p.id && a.scope === p.scope) || p;
-  const changed = now.version !== p.version;
-  return `${changed ? 'updated ' : 'current '} ${p.id.padEnd(32)} ${changed ? `${p.version} -> ${now.version}` : p.version}  (${p.scope})`;
+  const now = (after.find((a) => a.scope === p.scope) || p).version;
+  if (now !== p.version) changed = true;
+  return `${now !== p.version ? 'updated' : 'current'}  ${id}  ${now !== p.version ? `${p.version} -> ${now}` : p.version}  (${p.scope})`;
 });
 
-console.log(`bizzfly-rules update: ${market.name} marketplace refreshed\n\n${rows.join('\n')}`);
+console.log(`bizzfly-rules update\n\n${rows.join('\n')}`);
 if (failed.length) console.log(`\nFailed:\n  ${failed.join('\n  ')}`);
-if (rows.some((row) => row.startsWith('updated'))) console.log('\nRestart Claude Code to use the new versions.');
-if (legacy) {
-  console.log(`\nYou still have the old "${legacy.name}" marketplace (${legacy.repo}). It no longer ` +
-    'has a catalog and cannot update. Remove it, and reinstall anything you had from it:\n' +
-    `  /plugin marketplace remove ${legacy.name}\n  /plugin install testwright@${market.name}`);
-}
+console.log(changed
+  ? '\nRestart Claude Code to load the new rules.'
+  : '\nAlready on the latest rules. Nothing to do.');
 if (failed.length) process.exit(1);

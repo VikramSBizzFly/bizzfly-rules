@@ -7,6 +7,21 @@ out under **Versioning** in [README.md](README.md). Bump with
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-09-22
+
+A **patch** release: `/bizzfly-rules:update` does what its name says.
+
+### Fixed
+
+- **`/bizzfly-rules:update` updates the rules only.** In 1.2.0 it updated every
+  plugin installed from the `BizzFly` marketplace, testwright included. It now
+  updates only bizzfly-rules, which carries `rules.md` and the guard, in every
+  scope it's installed in, and leaves other plugins alone. It also stops early
+  with a clear message if bizzfly-rules isn't installed, and says so when the
+  rules are already current.
+- Dropped the old-`bizzfly`-marketplace notice from `update`. It was about
+  testwright, which this command no longer touches.
+
 ## [1.2.0] - 2026-09-22
 
 A **minor** release: two new commands. Nothing existing changed behaviour.
@@ -69,7 +84,8 @@ First release.
 - **`BIZZFLY_ALLOW_PATHS`** for allowing extra folders.
 - Runs on Node's standard library only, on Windows, macOS and Linux.
 
-[Unreleased]: https://github.com/VikramSBizzFly/bizzfly-rules/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/VikramSBizzFly/bizzfly-rules/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/VikramSBizzFly/bizzfly-rules/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/VikramSBizzFly/bizzfly-rules/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/VikramSBizzFly/bizzfly-rules/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/VikramSBizzFly/bizzfly-rules/releases/tag/v1.0.0

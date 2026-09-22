@@ -76,7 +76,7 @@ Work only inside the launch directory; if the task needs this path, stop and ask
 
 ```
 /bizzfly-rules:apply     set up this project for the rules
-/bizzfly-rules:update    update every installed BizzFly plugin
+/bizzfly-rules:update    update to the latest rules
 ```
 
 **`/bizzfly-rules:apply`** does the setup that rules 2 and 3 ask for, in one step:
@@ -98,22 +98,22 @@ ok       .claude/memory/MEMORY.md
 added    .claude/tmp/ to .gitignore
 ```
 
-**`/bizzfly-rules:update`** refreshes the `BizzFly` marketplace and updates every
-plugin you installed from it (bizzfly-rules, testwright, and any added later), in
-the scope each was installed in. It uses the `claude` CLI.
+**`/bizzfly-rules:update`** brings you the latest rules. It refreshes the
+`BizzFly` marketplace and updates the bizzfly-rules plugin, which carries
+`rules.md` and the guard, in every scope you installed it in. **It updates
+bizzfly-rules only.** testwright and any other BizzFly plugins are left alone;
+update those with `/plugin update <name>@BizzFly`. It uses the `claude` CLI.
 
 ```
-bizzfly-rules update: BizzFly marketplace refreshed
+bizzfly-rules update
 
-updated  bizzfly-rules@BizzFly            1.1.0 -> 1.2.0  (user)
-current  testwright@BizzFly               2.1.1  (project)
+updated  bizzfly-rules@BizzFly  1.2.0 -> 1.2.1  (user)
 
-Restart Claude Code to use the new versions.
+Restart Claude Code to load the new rules.
 ```
 
-**Restart Claude Code afterwards.** A running session keeps the plugin versions it
-started with. If you still have the old `bizzfly` marketplace, the command says so
-and shows how to switch.
+**Restart Claude Code afterwards.** A running session keeps the rules it started
+with.
 
 ## The rules
 
@@ -219,7 +219,7 @@ bizzfly-rules/
     ├── session-start.js         SessionStart: rules.md + launch directory → context
     ├── guard-paths.js           PreToolUse: allow, or deny with a reason
     ├── apply.js                 creates the folders and .gitignore entries
-    ├── update.js                refreshes the marketplace, updates BizzFly plugins
+    ├── update.js                refreshes the marketplace, updates bizzfly-rules
     └── bump-version.js          maintainer tool: release a new version
 ```
 
