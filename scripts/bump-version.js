@@ -39,4 +39,4 @@ manifest.version = next;
 fs.writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + '\n');
 
 console.log(`${arg === next ? '' : `${arg}: `}${maj}.${min}.${pat} -> ${next}`);
-console.log(`Next: git commit -am "Release ${next}" && git tag v${next} && git push --follow-tags`);
+console.log(`Next: git commit -am "Release ${next}" && git tag v${next} && git push origin main v${next}`);

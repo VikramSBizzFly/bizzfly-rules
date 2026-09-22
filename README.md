@@ -20,7 +20,8 @@ Part of the **BizzFly** marketplace, alongside
 ([VikramSBizzFly/bizzfly-marketplace](https://github.com/VikramSBizzFly/bizzfly-marketplace));
 `bizzfly-rules` is a plugin inside it.
 
-Restart Claude Code. To update later: `/plugin marketplace update BizzFly`
+Restart Claude Code, then run `/bizzfly-rules:apply` in each project. To update
+later: `/bizzfly-rules:update`
 
 **Requires Node.js on `PATH`.** Both hooks are small Node scripts. If `node` is
 missing, the hooks fail, Claude Code carries on without them, and **no rule is
@@ -71,6 +72,49 @@ bizzfly-rules: "C:\Users\me\.ssh\id_rsa" is outside the launch directory (D:\wor
 Work only inside the launch directory; if the task needs this path, stop and ask the user.
 ```
 
+## Commands
+
+```
+/bizzfly-rules:apply     set up this project for the rules
+/bizzfly-rules:update    update every installed BizzFly plugin
+```
+
+**`/bizzfly-rules:apply`** does the setup that rules 2 and 3 ask for, in one step:
+
+- creates `.claude/tmp/` and `.claude/memory/MEMORY.md` in the launch directory
+- adds both folders to `.gitignore`, creating the file if there isn't one, and
+  keeping its line endings
+
+It only adds what's missing: an existing `MEMORY.md` or `.gitignore` entry (or a
+`.claude/` line that already covers both) is left alone, so it's safe to run
+again. It never runs on its own. Nothing is created in a project until you ask.
+
+```
+bizzfly-rules apply: D:\work\app
+
+created  .claude/tmp/
+ok       .claude/memory/
+ok       .claude/memory/MEMORY.md
+added    .claude/tmp/ to .gitignore
+```
+
+**`/bizzfly-rules:update`** refreshes the `BizzFly` marketplace and updates every
+plugin you installed from it (bizzfly-rules, testwright, and any added later), in
+the scope each was installed in. It uses the `claude` CLI.
+
+```
+bizzfly-rules update: BizzFly marketplace refreshed
+
+updated  bizzfly-rules@BizzFly            1.1.0 -> 1.2.0  (user)
+current  testwright@BizzFly               2.1.1  (project)
+
+Restart Claude Code to use the new versions.
+```
+
+**Restart Claude Code afterwards.** A running session keeps the plugin versions it
+started with. If you still have the old `bizzfly` marketplace, the command says so
+and shows how to switch.
+
 ## The rules
 
 [`rules.md`](rules.md) is the single source of truth. It currently covers:
@@ -84,7 +128,7 @@ Work only inside the launch directory; if the task needs this path, stop and ask
    `~/.claude` folder.
 
 Rule 1 is enforced by the `PreToolUse` guard. Rules 2 and 3 are instructions that
-Claude follows.
+Claude follows; `/bizzfly-rules:apply` sets up the folders they need.
 
 ### Changing the rules
 
@@ -92,8 +136,8 @@ Claude follows.
 2. Note the change under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md).
 3. Release it. See [Versioning](#versioning).
 
-Team members get it with `/plugin marketplace update BizzFly`. The marketplace
-repo doesn't change.
+Team members get it with `/bizzfly-rules:update`. The marketplace repo doesn't
+change.
 
 ## How the boundary guard decides
 
@@ -166,16 +210,22 @@ files live in the plugin install folder, which the guard always allows.
 bizzfly-rules/
 ├── .claude-plugin/plugin.json   name and version
 ├── hooks/hooks.json             wires the two hooks
+├── commands/
+│   ├── apply.md                 /bizzfly-rules:apply
+│   └── update.md                /bizzfly-rules:update
 ├── rules.md                     the rules text that gets added to the session
 ├── CHANGELOG.md                 what changed in each version
 └── scripts/
     ├── session-start.js         SessionStart: rules.md + launch directory → context
     ├── guard-paths.js           PreToolUse: allow, or deny with a reason
+    ├── apply.js                 creates the folders and .gitignore entries
+    ├── update.js                refreshes the marketplace, updates BizzFly plugins
     └── bump-version.js          maintainer tool: release a new version
 ```
 
-Both scripts use only Node's standard library. There's no `npm install` and no
-`package.json`.
+Every script uses only Node's standard library. There's no `npm install` and no
+`package.json`. The commands are thin: each runs its script and prints the output
+unchanged, so the result doesn't depend on how Claude reads the instructions.
 
 To try the guard by hand, pipe it a hook payload:
 
@@ -210,5 +260,6 @@ update when this version changes**, so every release needs a bump. Semver, where
    `[Unreleased]` is empty, so no release goes out without an entry.
 3. Commit, tag and push, as the script prints:
    ```sh
-   git commit -am "Release x.y.z" && git tag vx.y.z && git push --follow-tags
+   git commit -am "Release x.y.z" && git tag vx.y.z && git push origin main vx.y.z
    ```
+   Name the tag in the push. `--follow-tags` skips plain (lightweight) tags.
