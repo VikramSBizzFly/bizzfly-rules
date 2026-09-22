@@ -19,7 +19,10 @@ try { input = JSON.parse(fs.readFileSync(0, 'utf8')); } catch { process.exit(0);
 
 const cwd = input.cwd || process.cwd();
 const root = real(process.env.CLAUDE_PROJECT_DIR || cwd);
-const allowed = [root, ...(process.env.BIZZFLY_ALLOW_PATHS || '')
+// Installed plugins run their own scripts and read their own files (e.g. testwright's
+// "$CLAUDE_PLUGIN_ROOT/scripts/tf.sh"), so the plugin install directory is allowed too.
+const pluginsDir = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'plugins');
+const allowed = [root, real(pluginsDir), ...(process.env.BIZZFLY_ALLOW_PATHS || '')
   .split(path.delimiter).filter(Boolean).map((p) => real(path.resolve(expand(p))))];
 
 function deny(target) {

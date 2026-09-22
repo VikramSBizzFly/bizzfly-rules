@@ -1,52 +1,214 @@
 # bizzfly-rules
 
-Gives every BizzFly team member the same global rules in every Claude Code session.
+bizzfly-rules gives every BizzFly team member the same rules in every Claude Code
+session, and it enforces the most important one: **Claude works only inside the
+folder the session was launched from.**
 
-| Hook | What it does |
-|---|---|
-| `SessionStart` | Injects `rules.md` plus the session's launch directory as context (on startup, resume, `/clear` and after compaction). |
-| `PreToolUse` | Denies `Read`, `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `Glob`, `Grep`, `Bash` and `PowerShell` calls that touch a path outside the launch directory. |
+Works on Windows, macOS and Linux. Nothing is installed into your project.
 
-**Requires:** Node.js on `PATH` (Windows, macOS, Linux). If `node` is missing, the hooks error out and Claude Code carries on without them, so the rules are **not** enforced.
+Part of the **BizzFly** marketplace, alongside
+[testwright](https://github.com/VikramSBizzFly/testwright).
 
 ## Install
-
-The plugin is published through the `BizzFly` marketplace ([VikramSBizzFly/bizzfly-marketplace](https://github.com/VikramSBizzFly/bizzfly-marketplace)).
 
 ```
 /plugin marketplace add VikramSBizzFly/bizzfly-marketplace
 /plugin install bizzfly-rules@BizzFly
 ```
 
-To enable it for everyone automatically, commit this to a project's `.claude/settings.json`:
+`BizzFly` is the marketplace
+([VikramSBizzFly/bizzfly-marketplace](https://github.com/VikramSBizzFly/bizzfly-marketplace));
+`bizzfly-rules` is a plugin inside it.
+
+Restart Claude Code. To update later: `/plugin marketplace update BizzFly`
+
+**Requires Node.js on `PATH`.** Both hooks are small Node scripts. If `node` is
+missing, the hooks fail, Claude Code carries on without them, and **no rule is
+enforced**. Check with `node --version`.
+
+### Turn it on for a whole team
+
+Commit this to a project's `.claude/settings.json`. Anyone who opens the project
+and trusts the folder is prompted to add the marketplace and enable the plugin:
 
 ```json
 {
   "extraKnownMarketplaces": {
-    "BizzFly": { "source": { "source": "github", "repo": "VikramSBizzFly/bizzfly-marketplace" } }
+    "BizzFly": {
+      "source": { "source": "github", "repo": "VikramSBizzFly/bizzfly-marketplace" }
+    }
   },
-  "enabledPlugins": { "bizzfly-rules@BizzFly": true }
+  "enabledPlugins": {
+    "bizzfly-rules@BizzFly": true
+  }
 }
 ```
 
-## Editing the rules
+### Moving from the old `bizzfly` marketplace
 
-Edit `rules.md`, bump `version` in `.claude-plugin/plugin.json`, and push to this repo. Team members pick up the change with `/plugin marketplace update BizzFly`.
+The marketplace used to live inside the testwright repo under the name
+`bizzfly`. If you added it from there, switch once:
 
-## How the boundary guard works
-
-- **Launch directory:** `$CLAUDE_PROJECT_DIR`, falling back to the session's `cwd`. Symlinks are resolved, and the comparison ignores case on Windows and macOS.
-- **File tools:** `file_path`, `notebook_path`, and the `path` of Glob and Grep are checked exactly. Glob and Grep patterns are checked up to their first wildcard, so `../**` and `C:/Users/**` are caught.
-- **Bash and PowerShell:** best-effort. The guard scans the command for path-like tokens: absolute paths (`C:\…`, `/c/…`, `\\server`), `..`, `~`, `$HOME`, `$env:X` and `%X%`. It also checks both sides of `--opt=value`. It skips URLs, `/dev/null`, and short switches like `cmd /c`. A bare `/foo` counts only if it is a system root (`/tmp`, `/etc`, `/Users`, …) or exists on disk, so `grep "/api/users"` is not blocked.
-- **Known limits:** The guard does not track a `cd` earlier in the same command (`cd sub && cat ../x` is denied, which errs on the safe side). It also cannot see paths that a command builds at runtime (`cat $(echo /et)c/passwd`). Treat it as a guard rail, not a sandbox. For hard isolation, turn on Claude Code's sandbox as well.
-- **Fails open:** if the hook input can't be parsed, the call is allowed.
-
-## Escape hatch
-
-To allow extra directories, set `BIZZFLY_ALLOW_PATHS` to a list separated by the OS path delimiter (`;` on Windows, `:` elsewhere). For example, you might add it to `env` in `~/.claude/settings.json`:
-
-```json
-{ "env": { "BIZZFLY_ALLOW_PATHS": "C:\\shared\\datasets" } }
+```
+/plugin marketplace remove bizzfly
+/plugin marketplace add VikramSBizzFly/bizzfly-marketplace
+/plugin install bizzfly-rules@BizzFly
 ```
 
-Claude Code sometimes saves very large tool output to a file under `~/.claude/projects/…` and asks Claude to read it. The guard blocks that read. That matches the boundary rule, but if it gets in the way, add that folder here.
+## What it does
+
+Two hooks, both active as soon as the plugin is enabled:
+
+| Hook | When | What it does |
+| --- | --- | --- |
+| `SessionStart` | startup, resume, `/clear`, after compaction | Adds [`rules.md`](rules.md) and the session's launch directory to Claude's context. |
+| `PreToolUse` | before every `Read`, `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `Glob`, `Grep`, `Bash` and `PowerShell` call | **Denies** the call if it touches a path outside the launch directory, and tells Claude why. |
+
+When a call is denied, Claude sees:
+
+```
+bizzfly-rules: "C:\Users\me\.ssh\id_rsa" is outside the launch directory (D:\work\app).
+Work only inside the launch directory; if the task needs this path, stop and ask the user.
+```
+
+## The rules
+
+[`rules.md`](rules.md) is the single source of truth. It currently covers:
+
+1. **Directory boundary.** Work only inside the launch directory. Don't read, write,
+   list or run anything outside it. If a task needs something outside, stop and ask.
+2. **Temporary files.** Use `<launch directory>/.claude/tmp/`, never the system temp
+   directory. Keep it in `.gitignore`, and clean up afterwards.
+3. **Memory.** Keep memory in `<launch directory>/.claude/memory/` with `MEMORY.md`
+   as the index. Keep it in `.gitignore`, and never write memory to the global
+   `~/.claude` folder.
+
+Rule 1 is enforced by the `PreToolUse` guard. Rules 2 and 3 are instructions that
+Claude follows.
+
+### Changing the rules
+
+1. Edit `rules.md`.
+2. Note the change under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md).
+3. Release it. See [Versioning](#versioning).
+
+Team members get it with `/plugin marketplace update BizzFly`. The marketplace
+repo doesn't change.
+
+## How the boundary guard decides
+
+**The launch directory** is `$CLAUDE_PROJECT_DIR`, falling back to the session's
+`cwd`. Paths are fully resolved, including `..`, `~` and symlinks, before they are
+compared. The comparison ignores case on Windows and macOS. A sibling folder with
+the same name prefix, such as `D:\work\app-old` next to `D:\work\app`, counts as
+outside.
+
+**Always allowed, besides the launch directory:**
+
+- **Installed plugins** (`~/.claude/plugins/`, or `$CLAUDE_CONFIG_DIR/plugins/`).
+  Plugins run their own scripts and read their own reference files from there.
+  testwright's engine, for example, is `"$CLAUDE_PLUGIN_ROOT/scripts/tf.sh"`.
+  The rest of `~/.claude` stays blocked, including `settings.json`,
+  `CLAUDE.md` and memory.
+- Any folder you list in `BIZZFLY_ALLOW_PATHS` (see
+  [Allowing extra folders](#allowing-extra-folders)).
+
+**File tools** are checked exactly: `file_path`, `notebook_path`, and the `path` of
+Glob and Grep. Glob and Grep patterns are checked up to their first wildcard, so
+`../**` and `C:/Users/**` are caught.
+
+**Bash and PowerShell** are checked best-effort. The guard scans the command for
+path-like tokens:
+
+- Caught: absolute paths (`C:\…`, `C:/…`, `/c/…`, `\\server\…`), `..`, `~`,
+  `$HOME`, `${VAR}`, `$env:VAR`, `%VAR%`, and both sides of `--opt=value` and
+  `VAR=value`.
+- Ignored: URLs, `/dev/null`, and short switches like `cmd /c` or `dir /s`.
+- A bare `/foo` counts only if it is a system root (`/tmp`, `/etc`, `/Users`,
+  `/home`, …) or exists on disk. That's why `grep "/api/users"` isn't blocked.
+
+### Known limits
+
+It's a guard rail, not a sandbox. For hard isolation, turn on Claude Code's
+sandbox as well.
+
+- **`cd` inside a command isn't tracked.** `cd sub && cat ../x` is denied even
+  though it stays inside. This errs on the safe side; run `cat sub/../x` or
+  `cd sub` on its own instead.
+- **Paths built at runtime aren't visible.** `cat $(echo /et)c/passwd` gets through.
+- **It fails open.** If the hook input can't be parsed, or Node isn't installed,
+  the call is allowed.
+- **Large tool output is blocked too.** Claude Code sometimes saves very large
+  output to a file under `~/.claude/projects/…` and asks Claude to read it. The
+  guard blocks that read, as the boundary rule says it should. If that gets in
+  the way, add the folder to `BIZZFLY_ALLOW_PATHS`.
+
+## Allowing extra folders
+
+Set `BIZZFLY_ALLOW_PATHS` to a list of folders, separated by `;` on Windows or `:`
+elsewhere. The usual place is `env` in your user settings, `~/.claude/settings.json`:
+
+```json
+{ "env": { "BIZZFLY_ALLOW_PATHS": "C:\\shared\\datasets;D:\\reference-docs" } }
+```
+
+Each folder and everything inside it is allowed for every tool the guard checks.
+
+## Using it with testwright
+
+The two plugins work together without any setup. testwright writes only under your
+project's `tests/`, which is inside the launch directory. Its engine and skill
+files live in the plugin install folder, which the guard always allows.
+
+## Under the hood
+
+```
+bizzfly-rules/
+├── .claude-plugin/plugin.json   name and version
+├── hooks/hooks.json             wires the two hooks
+├── rules.md                     the rules text that gets added to the session
+├── CHANGELOG.md                 what changed in each version
+└── scripts/
+    ├── session-start.js         SessionStart: rules.md + launch directory → context
+    ├── guard-paths.js           PreToolUse: allow, or deny with a reason
+    └── bump-version.js          maintainer tool: release a new version
+```
+
+Both scripts use only Node's standard library. There's no `npm install` and no
+`package.json`.
+
+To try the guard by hand, pipe it a hook payload:
+
+```sh
+echo '{"cwd":"/work/app","tool_name":"Read","tool_input":{"file_path":"/etc/hosts"}}' \
+  | CLAUDE_PROJECT_DIR=/work/app node scripts/guard-paths.js
+```
+
+Denied calls print a JSON `permissionDecision: "deny"`. Allowed calls print nothing.
+
+## Versioning
+
+The version lives in `.claude-plugin/plugin.json`, and
+[CHANGELOG.md](CHANGELOG.md) says what changed. **Claude Code only installs an
+update when this version changes**, so every release needs a bump. Semver, where
+"breaking" means _a teammate's normal work stops_:
+
+- **MAJOR:** a rule is removed, or the guard starts blocking something it used
+  to allow in a way people have to work around.
+- **MINOR:** a new rule, a newly guarded tool, or a new allowance.
+- **PATCH:** fixes and wording that don't change what's allowed.
+
+### Releasing
+
+1. Add what changed under `## [Unreleased]` in `CHANGELOG.md`.
+2. Bump:
+   ```sh
+   node scripts/bump-version.js patch    # or minor, major, or an exact 1.4.0
+   ```
+   This sets `version` in `plugin.json`, turns `[Unreleased]` into a dated
+   `[x.y.z]` section, and updates the compare links. It refuses to run if
+   `[Unreleased]` is empty, so no release goes out without an entry.
+3. Commit, tag and push, as the script prints:
+   ```sh
+   git commit -am "Release x.y.z" && git tag vx.y.z && git push --follow-tags
+   ```
