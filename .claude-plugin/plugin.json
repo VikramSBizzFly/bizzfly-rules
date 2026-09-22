@@ -1,0 +1,10 @@
+{
+  "name": "bizzfly-rules",
+  "version": "1.0.0",
+  "description": "BizzFly team rules for every Claude Code session: injects the global rules at session start and blocks tool calls that touch paths outside the launch directory.",
+  "author": {
+    "name": "BizzFly"
+  },
+  "homepage": "https://github.com/VikramSBizzFly/bizzfly-rules",
+  "repository": "https://github.com/VikramSBizzFly/bizzfly-rules"
+}
